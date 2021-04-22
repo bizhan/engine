@@ -284,7 +284,7 @@ bool ParagraphTxt::ComputeLineBreaks() {
     }
 
     // Setup breaker. We wait to set the line width in order to account for the
-    // widths of the inline placeholders, which are calcualted in the loop over
+    // widths of the inline placeholders, which are calculated in the loop over
     // the runs.
     breaker_.setLineWidths(0.0f, 0, width_);
     breaker_.setJustified(paragraph_style_.text_align == TextAlign::justify);
@@ -518,8 +518,8 @@ bool ParagraphTxt::IsStrutValid() const {
 }
 
 void ParagraphTxt::ComputeStrut(StrutMetrics* strut, SkFont& font) {
-  strut->ascent = std::numeric_limits<SkScalar>::lowest();
-  strut->descent = std::numeric_limits<SkScalar>::lowest();
+  strut->ascent = 0;
+  strut->descent = 0;
   strut->leading = 0;
   strut->half_leading = 0;
   strut->line_height = 0;
@@ -566,14 +566,8 @@ void ParagraphTxt::ComputeStrut(StrutMetrics* strut, SkFont& font) {
               : (paragraph_style_.strut_leading *
                  paragraph_style_.strut_font_size);
 
-      const bool half_leading_enabled =
-          paragraph_style_.strut_has_leading_distribution_override
-              ? paragraph_style_.strut_half_leading
-              : paragraph_style_.text_height_behavior &
-                    TextHeightBehavior::kEvenLeading;
-
       const double available_height =
-          half_leading_enabled ? metrics_height : strut_height;
+          paragraph_style_.strut_half_leading ? metrics_height : strut_height;
 
       strut->ascent =
           (-strut_metrics.fAscent / metrics_height) * available_height;
@@ -1123,8 +1117,10 @@ void ParagraphTxt::Layout(double width) {
 
     // Calculate the amount to advance in the y direction. This is done by
     // computing the maximum ascent and descent with respect to the strut.
-    double max_ascent = strut_.ascent + strut_.half_leading;
-    double max_descent = strut_.descent + strut_.half_leading;
+    double max_ascent = IsStrutValid() ? strut_.ascent + strut_.half_leading
+                                       : std::numeric_limits<double>::lowest();
+    double max_descent = IsStrutValid() ? strut_.descent + strut_.half_leading
+                                        : std::numeric_limits<double>::lowest();
     double max_unscaled_ascent = 0;
     for (const PaintRecord& paint_record : paint_records) {
       UpdateLineMetrics(paint_record.metrics(), paint_record.style(),
@@ -1211,11 +1207,6 @@ void ParagraphTxt::UpdateLineMetrics(const SkFontMetrics& metrics,
     const double blob_height = style.has_height_override
                                    ? style.height * style.font_size
                                    : metrics_font_height + metrics.fLeading;
-    const bool half_leading_enabled =
-        style.has_leading_distribution_override
-            ? style.half_leading
-            : paragraph_style_.text_height_behavior &
-                  TextHeightBehavior::kEvenLeading;
 
     // Scale the ascent and descent such that the sum of ascent and
     // descent is `style.height * style.font_size`.
@@ -1264,14 +1255,14 @@ void ParagraphTxt::UpdateLineMetrics(const SkFontMetrics& metrics,
     // a sane, consistent, and reasonable "blob_height" to be specified,
     // though it breaks with what is done by any of the platforms above.
     const bool shouldNormalizeFont =
-        style.has_height_override && !half_leading_enabled;
+        style.has_height_override && !style.half_leading;
     const double font_height =
         shouldNormalizeFont ? style.font_size : metrics_font_height;
 
     // Reserve the outermost vertical space we want to distribute evenly over
     // and under the text ("half-leading").
     double leading;
-    if (half_leading_enabled) {
+    if (style.half_leading) {
       leading = blob_height - font_height;
     } else {
       leading = style.has_height_override ? 0.0 : metrics.fLeading;
@@ -1925,8 +1916,7 @@ Paragraph::PositionWithAffinity ParagraphTxt::GetGlyphPositionAtCoordinate(
   }
 
   if (gp == nullptr) {
-    const GlyphPosition& last_glyph = line_glyph_position.back();
-    return PositionWithAffinity(last_glyph.code_units.end, UPSTREAM);
+    gp = &line_glyph_position.back();
   }
 
   // Find the direction of the run that contains this glyph.

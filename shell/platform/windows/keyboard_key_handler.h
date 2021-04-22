@@ -88,7 +88,7 @@ class KeyboardKeyHandler : public KeyboardHandlerBase {
   // unconditionally, in insertion order, and collecting their responses later.
   // It's not supported to prevent any delegates to process the events, because
   // in reality this will only support 2 hardcoded delegates, and only to
-  // continut supporting the legacy API (channel) during the deprecation window,
+  // continue supporting the legacy API (channel) during the deprecation window,
   // after which the channel delegate should be removed.
   //
   // Inherited from |KeyboardHandlerBase|.
@@ -106,6 +106,9 @@ class KeyboardKeyHandler : public KeyboardHandlerBase {
 
   // |KeyboardHandlerBase|
   void ComposeBeginHook() override;
+
+  // |KeyboardHandlerBase|
+  void ComposeCommitHook() override;
 
   // |KeyboardHandlerBase|
   void ComposeEndHook() override;
